@@ -26,7 +26,8 @@ export async function POST(req:Request) {
         .update($notes)
         .set({
           editorState,
-          ...(name && { name }), // Update name if provided
+          ...(name && { name }),
+          createdAt: new Date(), // Update name if provided
         })
         .where(eq($notes.id, noteId));
     }

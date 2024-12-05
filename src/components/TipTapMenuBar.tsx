@@ -7,8 +7,6 @@ import {
   Heading2,
   Heading3,
   Heading4,
-  Heading5,
-  Heading6,
   Italic,
   List,
   ListOrdered,
@@ -73,7 +71,7 @@ const TipTapMenuBar = ({ editor }: { editor: Editor }) => {
       >
         <Heading4 className="w-8 h-6" />
       </button>
-      <button
+      {/* <button
         onClick={() => editor.chain().focus().toggleHeading({ level: 5 }).run()}
         className={editor.isActive("heading", { level: 5 }) ? "is-active" : ""}
       >
@@ -84,7 +82,7 @@ const TipTapMenuBar = ({ editor }: { editor: Editor }) => {
         className={editor.isActive("heading", { level: 6 }) ? "is-active" : ""}
       >
         <Heading6 className="w-8 h-6" />
-      </button>
+      </button> */}
       <button
         onClick={() => editor.chain().focus().toggleBulletList().run()}
         className={editor.isActive("bulletList") ? "is-active" : ""}

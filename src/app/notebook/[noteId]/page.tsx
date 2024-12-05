@@ -11,6 +11,8 @@ import { clerk } from "@/lib/clerk-server";
 import { Button } from "@/components/ui/button";
 import TipTapEditor from "@/components/TipTapEditor";
 import NotesBar from "@/components/notesBar";
+import DeleteButton from "@/components/DeleteButton";
+import EditableNoteName from "@/components/EditableNoteName";
 
 type Props = {
   params: {
@@ -41,8 +43,45 @@ const NotebookPage = async ({ params: { noteId } }: Props) => {
 
   return (
     <div className="min-h-screen bg-purple-200 p-6 flex">
+      <div className="w-1/5 grid-cols-2">
+        <NotesBar notes={userNotes} currentNoteId={parseInt(noteId)} />
+        <div className=" border-r-2 mt-4 py-6 rounded-lg border-stone-200 bg-white p-4 shadow-xl">
+            <div className="text-xs font-semibold text-gray-700 pb-2">
+            <div className="mb-4"> 
+            <kbd className="px-2 py-1.5 text-xs font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-lg">
+              Shift + =
+            </kbd>{"  "}
+            for AI completion.
+            
+            </div>
+            <div className="mb-4"> 
+            <kbd className="px-2 py-1.5 text-xs font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-lg">
+              Shift + _
+            </kbd>{"  "}
+            for AI Code compiling.
+            </div>
+            
+            <div className="mb-4"> 
+            <kbd className="px-2 py-1.5 text-xs font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-lg">
+              Shift + *
+            </kbd>{"  "}
+            for AI summarization.
+            </div>
+            <div className=""> 
+            <kbd className="px-2 py-1.5 text-xs font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-lg">
+              Shift + |
+            </kbd>{"  "}
+            for asking question to AI.
+            </div>
+
+          </div>
+
+          
+
+        </div>
+      </div>
      
-      <NotesBar notes={userNotes} currentNoteId={parseInt(noteId)} />
+      
 
       <div className="w-4/5 pl-6">
         <div className="border shadow-xl bg-white border-stone-200 rounded-lg p-4 flex items-center">
@@ -56,9 +95,9 @@ const NotebookPage = async ({ params: { noteId } }: Props) => {
             {user.firstName} {user.lastName}
           </span>
           <span className="inline-block mx-1">/</span>
-          <span className="text-stone-500 font-semibold">{note.name}</span>
+          <EditableNoteName noteId={note.id} noteName={note.name} />
           <div className="ml-auto">
-            {/* <DeleteButton noteId={note.id} /> */}
+            <DeleteButton noteId={note.id} /> 
           </div>
         </div>
 
