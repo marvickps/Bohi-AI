@@ -14,6 +14,7 @@ import MarkdownIt from "markdown-it";
 import { writeDocx, DocxSerializer, defaultNodes, defaultMarks } from "prosemirror-docx";
 import { saveAs } from "file-saver";
 import { Download } from 'lucide-react';
+import { Node } from '@tiptap/core';
 
 
 type Props = {note: NoteType};
@@ -67,7 +68,8 @@ const TipTapEditor = ({note}: Props) => {
 				'Shift-+': () => {
 					const { state } = this.editor; 
                     const { from } = state.selection; 
-					const currentText = state.doc.textBetween(0, from).split(' ').slice(-30).join(' ');
+					const currentText = state.doc.textBetween(0, from).split(' ').slice(-50).join(' ');
+                    console.log(currentText);
 
                     
                     // const fullText = state.doc.textBetween(0, from); // Get the entire document text
@@ -75,28 +77,79 @@ const TipTapEditor = ({note}: Props) => {
 
                     // console.log(fullText);
 
-					const prompt = `You are a helpful artificial intelligence that possesses expert knowledge, utility, intelligence, and eloquence. You also behave politely and have good manners. I am writing a text and need your help to complete it. Keep the tone consistent with the rest of the text, and make sure the response is brief and pleasant. Continue with my idea on the following: ${currentText}`;
+					const prompt = `You are a helpful artificial intelligence that possesses expert knowledge, utility, intelligence, and eloquence. You also behave politely and have good manners. I am writing a text and need your help to complete it. Keep the tone consistent with the rest of the text, and try to continue where the text has left and make sure the response is brief and pleasant. Continue with my idea on the following: ${currentText}`;
                     
 					completionMutation.mutate(prompt);
 
 					return true;
 				},
                 'Shift-_': () => {
-                    const { state } = this.editor; 
-                    const { from } = state.selection;
-					
-					const currentText = state.doc.textBetween(0, from).split('\n').join(' ');
+                    function extractCodeAboveCursor(editor) {
+                        const { state } = editor;
+                        const { from } = state.selection; 
+                        let codeAboveCursor = '';
 
-					const prompt2 = `You are a compiler who can compile any code, based on this code show the output of the code, if code has some error show does like a compiler would, if the input data is not shown and the assume some input cases, and make sure the response is only the output of the code. here the code:  ${currentText}`;
-                    completionMutation.mutate(prompt2);
-					return true;
+                        state.doc.descendants((node: { type: { name: string; }; textContent: string; }, pos: number) => {
+                            if (pos >= from) {
+                                return false; 
+                            }
+
+                            if (node.type.name === 'codeBlock' || node.type.name === 'code') {
+                                codeAboveCursor += node.textContent + '\n\n';
+                            }
+                        });
+                    
+                        return codeAboveCursor.trim(); 
+                    }
+                    
+                    const codeAboveCursor = extractCodeAboveCursor(this.editor);
+                    console.log(codeAboveCursor)
+                    if (codeAboveCursor) {
+                        const prompt = `You are a compiler who can compile any code. Based on this code, show the output of the code. If the code has an error, show it as a compiler would. If the input data is not shown, assume some input cases. Ensure the response is only the output of the code. Here is the code:\n\n${codeAboveCursor}`;
+                        completionMutation.mutate(prompt);
+                    }
+                    return true;
+                    
 				},
+
                 'Shift-|': () => {
                     let floatingDiv = document.getElementById('qa-form');
                     let inputField: HTMLInputElement | null;
 
                     // Save current editor selection
                     const savedSelection = this.editor.state.selection;
+
+                    // Add a loading state
+                    let isLoading = false;
+
+                    // Function to toggle the loading screen
+                    const toggleLoading = (state: boolean) => {
+                        isLoading = state;
+                        let loadingOverlay = document.getElementById('loading-overlay');
+
+                        if (state) {
+                            // Create the loading overlay if it doesn't exist
+                            if (!loadingOverlay) {
+                                loadingOverlay = document.createElement('div');
+                                loadingOverlay.id = 'loading-overlay';
+                                loadingOverlay.className =
+                                    'fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50';
+                                loadingOverlay.innerHTML = `
+                                    <div class="bg-white p-6 rounded-lg shadow-lg flex flex-col items-center space-y-4">
+                                        <div class="loader border-t-4 border-purple-600 w-12 h-12 rounded-full animate-spin"></div>
+                                        <p class="text-gray-700 text-lg font-medium">Generating...</p>
+                                    </div>
+                                `;
+                                document.body.appendChild(loadingOverlay);
+                            }
+                            loadingOverlay.style.display = 'flex';
+                        } else {
+                            // Hide the loading overlay
+                            if (loadingOverlay) {
+                                loadingOverlay.style.display = 'none';
+                            }
+                        }
+                    };
 
                     if (!floatingDiv) {
                         // Dynamically create the floating div for the Q&A form
@@ -117,48 +170,105 @@ const TipTapEditor = ({note}: Props) => {
                                 >
                                     +
                                 </button>
-                                </div>
+                            </div>
                         `;
                         document.body.appendChild(floatingDiv);
 
-                        
                         inputField = document.getElementById('qa-input') as HTMLInputElement | null;
                         const submitButton = floatingDiv.querySelector('button');
                         if (submitButton) {
                             submitButton.addEventListener('click', () => {
                                 if (inputField) {
-                                    this.currentText = inputField.value; // Set currentText
+                                    this.currentText = inputField.value;
                                     if (this.currentText) {
-                                        const prompt3 = `You are an AI answering user questions accurately, remember to not give summary at last, try to make it as long as possible. Question: ${this.currentText}`;
-                                        generationMutation.mutate(prompt3);
-                                        inputField.value = ''; // Clear input field
-                                        floatingDiv!.style.display = 'none'; // Hide the form
+                                        const prompt3 = `You are an AI answering user questions accurately, remember to not give summary at last, based on the question's context give either a long formated answer or a short one. Question: "${this.currentText}"`;
+                                        
+                                        // Show loading screen
+                                        toggleLoading(true);
 
-                                        this.editor.commands.focus(); // Focus back on the editor
-                                        this.editor.view.dispatch(
-                                            this.editor.state.tr.setSelection(savedSelection)
-                                        );
+                                        // Start text generation
+                                        generationMutation.mutate(prompt3, {
+                                            onSuccess: () => {
+                                                // Hide loading screen
+                                                toggleLoading(false);
+
+                                                inputField.value = '';
+                                                floatingDiv!.style.display = 'none';
+
+                                                // Restore selection
+                                                this.editor.commands.focus();
+                                                try {
+                                                    this.editor.view.dispatch(
+                                                        this.editor.state.tr.setSelection(savedSelection)
+                                                    );
+                                                } catch (error) {
+                                                    console.warn(
+                                                        'Selection restoration error suppressed:',
+                                                        error
+                                                    );
+                                                }
+                                            },
+                                            onError: () => {
+                                                // Hide loading screen on error
+                                                toggleLoading(false);
+                                                alert('Failed to generate text. Please try again.');
+                                            },
+                                        });
                                     }
                                 }
                             });
                         }
                     } else {
-                        floatingDiv.style.display = floatingDiv.style.display === 'none' ? 'block' : 'none';
+                        floatingDiv.style.display =
+                            floatingDiv.style.display === 'none' ? 'block' : 'none';
                     }
-                    
+
                     inputField = document.getElementById('qa-input') as HTMLInputElement | null;
                     if (floatingDiv.style.display !== 'none' && inputField) {
-                        inputField.focus(); 
+                        inputField.focus();
                     }
 
                     return true;
-                },
+},
+
                 'Shift-*': () => {
                     let floatingDiv = document.getElementById('qa-form');
                     let textAreaField: HTMLTextAreaElement | null;
 
                     // Save current editor selection
                     const savedSelection = this.editor.state.selection;
+
+                    // Add a loading state
+                    let isLoading = false;
+
+                    // Function to toggle the loading screen
+                    const toggleLoading = (state: boolean) => {
+                        isLoading = state;
+                        let loadingOverlay = document.getElementById('loading-overlay');
+
+                        if (state) {
+                            // Create the loading overlay if it doesn't exist
+                            if (!loadingOverlay) {
+                                loadingOverlay = document.createElement('div');
+                                loadingOverlay.id = 'loading-overlay';
+                                loadingOverlay.className =
+                                    'fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50';
+                                loadingOverlay.innerHTML = `
+                                    <div class="bg-white p-6 rounded-lg shadow-lg flex flex-col items-center space-y-4">
+                                        <div class="loader border-t-4 border-purple-600 w-12 h-12 rounded-full animate-spin"></div>
+                                        <p class="text-gray-700 text-lg font-medium">Summarizing...</p>
+                                    </div>
+                                `;
+                                document.body.appendChild(loadingOverlay);
+                            }
+                            loadingOverlay.style.display = 'flex';
+                        } else {
+                            // Hide the loading overlay
+                            if (loadingOverlay) {
+                                loadingOverlay.style.display = 'none';
+                            }
+                        }
+                    };
 
                     if (!floatingDiv) {
                         // Dynamically create the floating div for the Q&A form
@@ -177,7 +287,7 @@ const TipTapEditor = ({note}: Props) => {
                                 <button
                                     class="flex items-center justify-center bg-purple-600 text-white rounded-lg py-2 hover:bg-purple-500 transition"
                                 >
-                                    summarize
+                                    Summarize
                                 </button>
                             </div>
                         `;
@@ -188,23 +298,48 @@ const TipTapEditor = ({note}: Props) => {
                         if (submitButton) {
                             submitButton.addEventListener('click', () => {
                                 if (textAreaField) {
-                                    this.currentText = textAreaField.value; 
+                                    this.currentText = textAreaField.value;
                                     if (this.currentText) {
-                                        const prompt3 = `You are an AI summarizing user text accurately, summarize the input and give the summary in one paragraph. Input: ${this.currentText}`;
-                                        completionMutation.mutate(prompt3);
-                                        textAreaField.value = '';
-                                        floatingDiv!.style.display = 'none'; 
+                                        const prompt3 = `You are an AI summarizing user text accurately. Summarize the input in one paragraph. Input: "${this.currentText}"`;
 
-                                        this.editor.commands.focus(); 
-                                        this.editor.view.dispatch(
-                                            this.editor.state.tr.setSelection(savedSelection)
-                                        );
+                                        // Show loading screen
+                                        toggleLoading(true);
+
+                                        // Start text generation
+                                        completionMutation.mutate(prompt3, {
+                                            onSuccess: () => {
+                                                // Hide loading screen
+                                                toggleLoading(false);
+
+                                                textAreaField.value = '';
+                                                floatingDiv!.style.display = 'none';
+
+                                                // Restore selection
+                                                this.editor.commands.focus();
+                                                try {
+                                                    this.editor.view.dispatch(
+                                                        this.editor.state.tr.setSelection(savedSelection)
+                                                    );
+                                                } catch (error) {
+                                                    console.warn(
+                                                        'Selection restoration error suppressed:',
+                                                        error
+                                                    );
+                                                }
+                                            },
+                                            onError: () => {
+                                                // Hide loading screen on error
+                                                toggleLoading(false);
+                                                alert('Failed to summarize text. Please try again.');
+                                            },
+                                        });
                                     }
                                 }
                             });
                         }
                     } else {
-                        floatingDiv.style.display = floatingDiv.style.display === 'none' ? 'block' : 'none';
+                        floatingDiv.style.display =
+                            floatingDiv.style.display === 'none' ? 'block' : 'none';
                     }
 
                     textAreaField = document.getElementById('qa-textarea') as HTMLTextAreaElement | null;
@@ -214,6 +349,7 @@ const TipTapEditor = ({note}: Props) => {
 
                     return true;
                 },
+
                     };
                 },
             
@@ -247,7 +383,8 @@ const TipTapEditor = ({note}: Props) => {
           if (!editor) return;
       
           const opts = {
-            getImageBuffer: (src: string) => Buffer.from("Real buffer here"), // Customize as needed
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            getImageBuffer: (src: string) => Buffer.from("Real buffer here"), 
           };
       
           const wordDocument = docxSerializer.serialize(editor.state.doc, opts);

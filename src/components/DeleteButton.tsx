@@ -4,7 +4,7 @@ import { useMutation } from '@tanstack/react-query';
 import axios from 'axios';
 import { Trash } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { Button } from './ui/button';
+
 
 type Props = {
 	noteId: number;
